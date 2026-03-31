@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔥 File Manager Ultra Pro - Cloud Edition</title>
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box;}
+        body{
+            font-family: 'Segoe UI';
+            background: linear-gradient(135deg,#1f1c2c,#928dab);
+            color:#fff;
+            text-align:center;
+            padding:20px;
+            min-height: 100vh;
+        }
+        .glass{
+            background: rgba(255,255,255,0.08);
+            backdrop-filter: blur(12px);
+            border-radius:15px;
+            box-shadow:0 0 25px rgba(0,0,0,0.3);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        h1{font-size:32px; margin-bottom:15px;}
+        .upload-area{
+            border:2px dashed #fff;
+            padding:40px;
+            cursor:pointer;
+            transition:0.3s;
+            margin-bottom: 20px;
+        }
+        .upload-area:hover{background:#ffffff20;}
+        .file-item{
+            display:flex;
+            justify-content:space-between;
+            align-items: center;
+            padding:12px;
+            margin:8px 0;
+            border-radius:10px;
+            background:#ffffff10;
+        }
+        .file-name{cursor:pointer; flex-grow: 1; text-align: left; margin-left: 10px;}
+        .btn{
+            padding:12px 22px;
+            border:none;
+            border-radius:30px;
+            cursor:pointer;
+            margin:5px;
+            font-weight:bold;
+            transition: 0.2s;
+        }
+        .btn:active{transform: scale(0.95);}
+        .download{background:#00c853; color: white;}
+        .cloud{background:#03a9f4; color: white;}
+        .all{background:#ff9800; color: white;}
+        .close{background:#ff5252; color: white;}
+        .delete-btn{background: transparent; border: none; color: #ff5252; cursor: pointer; font-size: 18px;}
+        
+        #previewBox img, #previewBox video {
+            max-width: 100%;
+            border-radius: 10px;
+            margin-top: 10px;
+        }
+
+        .popup{
+            position:fixed;
+            top:20px;
+            right:20px;
+            background:#333;
+            color: white;
+            padding:12px 20px;
+            border-radius:10px;
+            opacity:0;
+            transform:translateY(-20px);
+            transition:0.4s;
+            z-index: 1000;
+        }
+        .popup.show{opacity:1; transform:translateY(0);}
+    </style>
+</head>
+<body>
+
+    <h1>🚀 Cloud File Manager Pro</h1>
+
+    <div class="upload-area glass" id="uploadArea">
+        📂 Click or Drag Files Here to Add
+    </div>
+
+    <input type="file" id="fileInput" hidden multiple>
+
+    <div id="fileList" class="glass" style="display:none;"></div>
+
+    <button class="btn all" id="downloadAllBtn" style="display:none;">⬇️ Download All (Local)</button>
+
+    <div id="preview" class="glass" style="display:none;">
+        <div id="previewBox"></div>
+        <div style="margin-top:15px;">
+            <button class="btn cloud" id="uploadCloudBtn">☁️ Upload to Cloud Server</button>
+            <button class="btn download" id="downloadBtn">⬇️ Save Locally</button>
+            <button class="btn close" id="closeBtn">❌ Close</button>
+        </div>
+    </div>
+
+    <div id="popup" class="popup"></div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-analytics.js";
+        import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-storage.js";
+
+        // Aapki Updated Configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyBHek2pud22n_lRN2UhzFZlKCQGowh7Egs",
+            authDomain: "boka-choda-suar-bachha.firebaseapp.com",
+            projectId: "boka-choda-suar-bachha",
+            storageBucket: "boka-choda-suar-bachha.firebasestorage.app",
+            messagingSenderId: "629138835912",
+            appId: "1:629138835912:web:d1fcf5a7edeae4bec218fd",
+            measurementId: "G-LDS4YYW440"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const analytics = getAnalytics(app);
+        const storage = getStorage(app);
+
+        // Global state
+        let files = [];
+        let currentIdx = null;
+
+        const uploadArea = document.getElementById("uploadArea");
+        const fileInput = document.getElementById("fileInput");
+        const fileList = document.getElementById("fileList");
+        const preview = document.getElementById("preview");
+        const previewBox = document.getElementById("previewBox");
+
+        // --- UI Logic ---
+        uploadArea.onclick = () => fileInput.click();
+        fileInput.onchange = e => addFiles(e.target.files);
+
+        function showPopup(msg) {
+            const p = document.getElementById("popup");
+            p.innerText = msg;
+            p.classList.add("show");
+            setTimeout(() => p.classList.remove("show"), 2500);
+        }
+
+        function addFiles(newFiles) {
+            [...newFiles].forEach(file => {
+                const url = URL.createObjectURL(file);
+                files.push({ file, url });
+            });
+            render();
+            showPopup("✅ Files Ready to Upload");
+        }
+
+        function render() {
+            if (files.length > 0) {
+                fileList.style.display = "block";
+                document.getElementById("downloadAllBtn").style.display = "inline-block";
+            } else {
+                fileList.style.display = "none";
+                document.getElementById("downloadAllBtn").style.display = "none";
+            }
+
+            fileList.innerHTML = "";
+            files.forEach((f, i) => {
+                const div = document.createElement("div");
+                div.className = "file-item";
+                div.innerHTML = `
+                    <span>📄</span>
+                    <span class="file-name">${f.file.name}</span>
+                    <button class="delete-btn" onclick="removeFile(${i})">🗑️</button>
+                `;
+                div.querySelector(".file-name").onclick = () => previewFile(i);
+                fileList.appendChild(div);
+            });
+        }
+
+        window.removeFile = (i) => {
+            URL.revokeObjectURL(files[i].url);
+            files.splice(i, 1);
+            render();
+            preview.style.display = "none";
+        };
+
+        function previewFile(i) {
+            currentIdx = i;
+            const currentFile = files[i].file;
+            preview.style.display = "block";
+            previewBox.innerHTML = `<h3>${currentFile.name}</h3>`;
+
+            if (currentFile.type.startsWith("image")) {
+                previewBox.innerHTML += `<img src="${files[i].url}">`;
+            } else if (currentFile.type.startsWith("video")) {
+                previewBox.innerHTML += `<video controls src="${files[i].url}"></video>`;
+            } else {
+                previewBox.innerHTML += `<p style="margin-top:10px;">Preview not available for this type.</p>`;
+            }
+        }
+
+        // --- 🔥 FIREBASE CLOUD UPLOAD 🔥 ---
+        document.getElementById("uploadCloudBtn").onclick = async () => {
+            if (currentIdx === null) return;
+            const fileData = files[currentIdx];
+            
+            showPopup("⏳ Uploading to Server...");
+            
+            try {
+                // Storage me uploads folder me save hoga
+                const storageRef = ref(storage, 'uploads/' + fileData.file.name);
+                const snapshot = await uploadBytes(storageRef, fileData.file);
+                const downloadURL = await getDownloadURL(snapshot.ref);
+                
+                showPopup("🚀 Uploaded to Cloud!");
+                alert("File successfully uploaded to Firebase!\nURL: " + downloadURL);
+            } catch (error) {
+                console.error(error);
+                showPopup("❌ Upload Failed!");
+                alert("Error: Firebase Storage permissions check karein.");
+            }
+        };
+
+        // --- Local Download Logic ---
+        document.getElementById("downloadBtn").onclick = () => {
+            const f = files[currentIdx];
+            const a = document.createElement("a");
+            a.href = f.url;
+            a.download = "copy_" + f.file.name;
+            a.click();
+        };
+
+        document.getElementById("closeBtn").onclick = () => preview.style.display = "none";
+    </script>
+</body>
+      </html>
+      
